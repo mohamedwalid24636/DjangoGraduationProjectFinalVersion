@@ -4,7 +4,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
-from django.core.mail import send_mail
+from api.utils.email import send_mail_async
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.utils.timezone import make_aware
@@ -157,17 +157,14 @@ class RegisterView(APIView):
             has_completed_survey = False 
         elif user.role == 'therapist':
             has_completed_survey = True 
-        try:
-            subject = 'Welcome to Neurea'
-            message = (
-                f"Hello {user.first_name or user.username},\n\n"
-                "Welcome to Neurea! We are thrilled to have you with us.\n"
-                "Best Regards,\n"
-                "The Neurea Team"
-            )
-            send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [user.email], fail_silently=True)
-        except Exception as e:
-            print(f"Error sending welcome email: {e}")
+        subject = 'Welcome to Neurea'
+        message = (
+            f"Hello {user.first_name or user.username},\n\n"
+            "Welcome to Neurea! We are thrilled to have you with us.\n"
+            "Best Regards,\n"
+            "The Neurea Team"
+        )
+        send_mail_async(subject, message, settings.DEFAULT_FROM_EMAIL, [user.email], fail_silently=True)
 
         refresh = RefreshToken.for_user(user)
         refresh['role'] = user.role                                                                              # Mohamed Walid Added      
@@ -244,17 +241,14 @@ class ForgotPasswordView(APIView):
 
         reset_code = PasswordResetCode.generate_code(email)
 
-        try:
-            send_mail(
-                subject='Password Reset Code - Care App',
-                message=f'Your password reset code is: {reset_code.code}\nThis code expires in 15 minutes.',
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[email],
-                fail_silently=False,
-            )
-            return Response({'message': 'Verification code sent to your Gmail.'}, status=status.HTTP_200_OK)
-        except Exception as e:
-            return Response({'error': 'Failed to send email. Please try again later.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        send_mail_async(
+            subject='Password Reset Code - Care App',
+            message=f'Your password reset code is: {reset_code.code}\nThis code expires in 15 minutes.',
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[email],
+            fail_silently=True,
+        )
+        return Response({'message': 'Verification code sent to your Gmail.'}, status=status.HTTP_200_OK)
 class ResetPasswordView(APIView):
     permission_classes = [AllowAny]
 
@@ -277,7 +271,7 @@ class ResetPasswordView(APIView):
             )
             from_email = settings.DEFAULT_FROM_EMAIL
             recipient_list = [user.email]
-            send_mail(subject, message, from_email, recipient_list, fail_silently=True)
+            send_mail_async(subject, message, from_email, recipient_list, fail_silently=True)
             reset_code.delete()
 
             return Response(
